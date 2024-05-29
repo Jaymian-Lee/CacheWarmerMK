@@ -10,9 +10,6 @@ def crawl_website(url, base_url, visited=None):
         visited = set()
     if url in visited:
         return visited
-    parsed_url = urlparse(url)
-    if '/img' in parsed_url.path or parsed_url.query:
-        return visited
     visited.add(url)
     print(f"Crawling: {url}")
     try:
@@ -22,9 +19,9 @@ def crawl_website(url, base_url, visited=None):
         for link in soup.find_all('a', href=True):
             href = link['href']
             full_url = urljoin(base_url, href)
-            full_url = urlparse(full_url)._replace(query="").geturl()  # Remove query parameters
-            if full_url not in visited and base_url in full_url:
-                visited.update(crawl_website(full_url, base_url, visited))
+            parsed_full_url = urlparse(full_url)._replace(query="").geturl()  # Remove query parameters for consistency
+            if parsed_full_url not in visited and base_url in parsed_full_url:
+                visited.update(crawl_website(parsed_full_url, base_url, visited))
     except requests.RequestException as e:
         print(f"Failed to crawl {url}: {str(e)}")
     return visited
@@ -44,7 +41,7 @@ def fetch(url):
         return False
 
 # Function to warm the cache for the list of URLs with limited concurrent connections
-def warm_cache(urls, max_workers=10):  # Increase max_workers to 10
+def warm_cache(urls, max_workers=10):
     successful_scans = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = executor.map(fetch, urls)
@@ -61,18 +58,23 @@ if __name__ == "__main__":
             print("Starting crawl...")
             urls = crawl_website(start_url, base_url)
             print(f"Found {len(urls)} URLs to warm up")
+            
+            # Save the URLs to a file for verification
+            with open('crawled_urls.txt', 'w') as f:
+                for url in urls:
+                    f.write(url + '\n')
 
             # Warm-up cycle
             print("Starting cache warm-up...")
             start_time = time.time()
-            successful_scans = warm_cache(urls, max_workers=10)  # Adjust the number of workers to control load
+            successful_scans = warm_cache(urls, max_workers=10)
             end_time = time.time()
             cycle_time = end_time - start_time
             print(f"Cache warming cycle completed in {cycle_time} seconds")
             print(f"Total successful scans: {successful_scans}")
 
             # Sleep for a desired period if needed, e.g., 60 seconds
-            time.sleep(30)  # Reduce sleep time to 30 seconds
+            time.sleep(30)
 
     except KeyboardInterrupt:
         print("Cache warming interrupted by user")
