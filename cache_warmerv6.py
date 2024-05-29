@@ -10,6 +10,9 @@ def crawl_website(url, base_url, visited=None):
         visited = set()
     if url in visited:
         return visited
+    parsed_url = urlparse(url)
+    if '/img' in parsed_url.path:  # Exclude URLs containing /img in the path
+        return visited
     visited.add(url)
     print(f"Crawling: {url}")
     try:
