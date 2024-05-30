@@ -46,7 +46,7 @@ def fetch(url, user_agent, session, count):
         return False
 
 # Function to warm the cache for the list of URLs with limited concurrent connections
-def warm_cache(urls, user_agents, session, max_workers=10):
+def warm_cache(urls, user_agents, session, max_workers=5):
     successful_scans = 0
     count = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -86,7 +86,7 @@ if __name__ == "__main__":
             # Warm-up cycle
             print("Starting cache warm-up...")
             start_time = time.time()
-            successful_scans = warm_cache(urls, user_agents, session, max_workers=10)
+            successful_scans = warm_cache(urls, user_agents, session, max_workers=5)
             end_time = time.time()
             cycle_time = end_time - start_time
             print(f"Cache warming cycle completed in {cycle_time} seconds")
