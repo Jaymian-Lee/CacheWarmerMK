@@ -5,9 +5,9 @@ import time
 import xml.etree.ElementTree as ET
 
 # Function to fetch and parse the sitemap
-def fetch_sitemap(sitemap_url):
+def fetch_sitemap(sitemap_url, session):
     try:
-        response = requests.get(sitemap_url)
+        response = session.get(sitemap_url)
         response.raise_for_status()
         sitemap_content = response.content
         urls = parse_sitemap(sitemap_content)
@@ -30,10 +30,10 @@ def parse_sitemap(content):
     return urls
 
 # Function to fetch a URL with a delay to avoid server overload
-def fetch(url, user_agent, count):
+def fetch(url, user_agent, session, count):
     headers = {'User-Agent': user_agent}
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = session.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             print(f"({count}) Successfully warmed: {url} with user agent: {user_agent}")
             return True
@@ -45,7 +45,7 @@ def fetch(url, user_agent, count):
         return False
 
 # Function to warm the cache for the list of URLs with limited concurrent connections
-def warm_cache(urls, user_agents, max_workers=10):
+def warm_cache(urls, user_agents, session, max_workers=10):
     successful_scans = 0
     count = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -53,7 +53,7 @@ def warm_cache(urls, user_agents, max_workers=10):
         for url in urls:
             for user_agent in user_agents:
                 count += 1
-                futures.append(executor.submit(fetch, url, user_agent, count))
+                futures.append(executor.submit(fetch, url, user_agent, session, count))
         results = [future.result() for future in concurrent.futures.as_completed(futures)]
     successful_scans = sum(results)
     return successful_scans
@@ -67,11 +67,13 @@ if __name__ == "__main__":
         "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Mobile Safari/537.36"  # Android
     ]
 
+    session = requests.Session()  # Create a session to handle cookies
+
     try:
         while True:
             # Fetch and parse the sitemap to get all URLs
             print("Fetching sitemap...")
-            urls = fetch_sitemap(sitemap_url)
+            urls = fetch_sitemap(sitemap_url, session)
             print(f"Found {len(urls)} URLs to warm up")
             
             # Save the URLs to a file for verification
@@ -82,14 +84,14 @@ if __name__ == "__main__":
             # Warm-up cycle
             print("Starting cache warm-up...")
             start_time = time.time()
-            successful_scans = warm_cache(urls, user_agents, max_workers=10)
+            successful_scans = warm_cache(urls, user_agents, session, max_workers=10)
             end_time = time.time()
             cycle_time = end_time - start_time
             print(f"Cache warming cycle completed in {cycle_time} seconds")
             print(f"Total successful scans: {successful_scans}")
 
             # Sleep for a desired period if needed, e.g., 60 seconds
-            time.sleep(30)
+            time.sleep(60)
 
     except KeyboardInterrupt:
         print("Cache warming interrupted by user")
