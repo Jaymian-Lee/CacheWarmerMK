@@ -2,33 +2,32 @@ import requests
 from bs4 import BeautifulSoup
 import concurrent.futures
 import time
-from urllib.parse import urljoin, urlparse
+import xml.etree.ElementTree as ET
 
-# Function to crawl a website and extract all links
-def crawl_website(url, base_url, visited=None, count=0):
-    if visited is None:
-        visited = set()
-    if url in visited:
-        return visited, count
-    parsed_url = urlparse(url)
-    if '/img' in parsed_url.path:  # Exclude URLs containing /img in the path
-        return visited, count
-    visited.add(url)
-    count += 1
-    print(f"({count}) Crawling: {url}")
+# Function to fetch and parse the sitemap
+def fetch_sitemap(sitemap_url):
     try:
-        response = requests.get(url)
+        response = requests.get(sitemap_url)
         response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
-        for link in soup.find_all('a', href=True):
-            href = link['href']
-            full_url = urljoin(base_url, href)
-            parsed_full_url = urlparse(full_url)._replace(query="").geturl()  # Remove query parameters for consistency
-            if parsed_full_url not in visited and base_url in parsed_full_url:
-                visited, count = crawl_website(parsed_full_url, base_url, visited, count)
+        sitemap_content = response.content
+        urls = parse_sitemap(sitemap_content)
+        return urls
     except requests.RequestException as e:
-        print(f"Failed to crawl {url}: {str(e)}")
-    return visited, count
+        print(f"Failed to fetch sitemap: {str(e)}")
+        return []
+
+# Function to parse the sitemap XML and extract URLs
+def parse_sitemap(content):
+    urls = []
+    try:
+        tree = ET.fromstring(content)
+        for elem in tree:
+            for subelem in elem:
+                if 'loc' in subelem.tag:
+                    urls.append(subelem.text)
+    except ET.ParseError as e:
+        print(f"Failed to parse sitemap: {str(e)}")
+    return urls
 
 # Function to fetch a URL with a delay to avoid server overload
 def fetch(url, user_agent, count):
@@ -60,8 +59,7 @@ def warm_cache(urls, user_agents, max_workers=10):
     return successful_scans
 
 if __name__ == "__main__":
-    base_url = 'https://www.martijnkozijntest.nl'
-    start_url = 'https://www.martijnkozijntest.nl'
+    sitemap_url = 'https://www.martijnkozijn.nl/1_nl_0_sitemap.xml'
     
     user_agents = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",  # Desktop
@@ -71,13 +69,13 @@ if __name__ == "__main__":
 
     try:
         while True:
-            # Crawl the website to get all URLs
-            print("Starting crawl...")
-            urls, crawl_count = crawl_website(start_url, base_url)
+            # Fetch and parse the sitemap to get all URLs
+            print("Fetching sitemap...")
+            urls = fetch_sitemap(sitemap_url)
             print(f"Found {len(urls)} URLs to warm up")
             
             # Save the URLs to a file for verification
-            with open('crawled_urls.txt', 'w') as f:
+            with open('sitemap_urls.txt', 'w') as f:
                 for url in urls:
                     f.write(url + '\n')
 
